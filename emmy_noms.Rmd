@@ -1,0 +1,21 @@
+---
+title: "Emmy Noms"
+author: "Caitlin Connolly"
+date: "12/28/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(tidymodels)
+```
+
+```{r}
+nominees <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-09-21/nominees.csv')
+```
+
+```{r}
+glimpse(nominees)
+```
+
