@@ -2,20 +2,145 @@
 title: "Emmy Noms"
 author: "Caitlin Connolly"
 date: "12/28/2021"
-output: html_document
+output: 
+  html_document:
+    theme: cosmo
+    code_folding: hide
+    toc: yes
+    toc_float: true
 ---
 
-```{r setup, include=FALSE, message=FALSE}
+```{r setup, include=FALSE, message=FALSE, warning=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(tidyr)
 library(tidymodels)
+library(rvest)
 ```
 
-```{r}
-nominees <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-09-21/nominees.csv')
+```{r load-data}
+#nominees <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2021/2021-09-21/nominees.csv')
+load(file = "data/raw/nominees.rda")
 ```
 
 ```{r}
 glimpse(nominees)
 ```
+
+
+```{r save-raw}
+#save(nominees, file="data/raw/nominees.rda")
+```
+
+## Data Wrangling 
+### From tidytuesday github
+```{r wrangle-data}
+clean_nominee <- function(x){
+  
+  trimmed_nom <- str_trim(x) %>% 
+    str_split("\n") %>% 
+    pluck(1) %>%
+    str_trim()
+  
+  out_len <- length(trimmed_nom)
+  
+  names_add <- c(
+    c("type", "title", "distributor", "producer"),rep("blank", out_len - 4)
+  )
+  
+  trimmed_nom %>% 
+    set_names(nm = names_add)
+}
+
+clean_production <- function(raw_html){
+  
+  data_out <- map2(
+    1:10, rep(c("odd", "even"), 5),
+    ~raw_html %>% 
+      html_nodes(glue::glue("div.views-row.views-row-{.x}.views-row-{.y}")) %>% 
+      html_nodes(".winner-list") %>% 
+      map(~html_nodes(.x, "li")) %>% 
+      map(html_text) 
+  ) %>% 
+    map(pluck, 1)
+  
+  data_out
+  
+}
+
+
+scrape_pages <- function(page_num){
+  
+  cat(scales::percent_format()(page_num/1000), "\n")
+  
+  url <- glue::glue("https://www.emmys.com/awards/nominations/award-search?page={page_num}")
+  
+  raw_html <- url %>% 
+    read_html() %>% 
+    html_nodes("#block-system-main > div > div > section:nth-child(3) > div > div")
+  
+  category <- raw_html %>% 
+    # html_node("#block-system-main > div > div > section:nth-child(3) > div > div") %>% 
+    html_nodes("h5") %>% 
+    html_text()
+  
+  logos <- raw_html %>% 
+    html_nodes("div.image.img.col-4.col-md-3.col-xl-2 > a > img") %>% 
+    html_attr("src")
+  
+  outcome <- raw_html %>% 
+    html_nodes("ul.nominee, ul.winner") %>% 
+    html_text() %>% 
+    map(clean_nominee)
+  
+  out_len <- map(outcome, length)
+  
+  production <- clean_production(raw_html)
+  
+  tibble(
+    category = category,
+    logo = logos,
+    production = production,
+    outcome = outcome
+  ) %>%
+    mutate(year = str_sub(category, -4, -1) %>% as.integer(),
+           page = page_num,
+           page_id = row_number())
+  
+}
+
+safe_scrape <- safely(scrape_pages)
+
+map_all <- 0:2362 %>% map(safe_scrape)
+
+all_results <- map_all %>% 
+  map_dfr("result")
+```
+
+```{r did-not-work}
+# clean_df <- all_results |>
+#   rowwise() %>% 
+#   mutate(
+#     fix = ifelse(str_detect(title, ", as"), 1, 0),
+#     title = ifelse(fix == 1, distributor, title),
+#     distributor = ifelse(fix == 1 && !is.na(producer), producer, distributor),
+#     producer = ifelse(fix == 1 && !is.na(blank), blank, producer),
+#     producer = ifelse(!is.na(blank), blank, producer)
+#   ) 
+# 
+# final_df <- clean_df %>% 
+#   select(-contains("blank"), -fix)
+```
+
+```{r save-most-wrangled-data}
+save(all_results, file = "data/wrangled/results.rda")
+```
+
+
+## Data Visualization 
+
+```{r}
+
+```
+
 
